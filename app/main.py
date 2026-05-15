@@ -18,14 +18,10 @@ def get_website_service(session: Session = Depends(get_session)) -> WebsiteServi
 
 
 @app.get("/", response_model=List[Website])
-def get_websites(session: Session = Depends(get_session)):
-    website_service = get_website_service(session)
+def get_websites(website_service: WebsiteService = Depends(get_website_service)):
     return website_service.get_all()
 
 @app.post("/", response_model=Website)
-def create_website(website: Website, session: Session = Depends(get_session)):
-    session.add(website)
-    session.commit()
-    session.refresh(website)
-    return website
+def create_website(website: Website, website_service: WebsiteService = Depends(get_website_service)):
+    return website_service.create_website(website)
 
