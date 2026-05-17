@@ -1,12 +1,40 @@
 from sqlmodel import Session
 from fastapi import FastAPI, Depends
 from typing import List
-from models import engine, Website, Check
+from models import engine, Website
 from services import WebsiteService, CheckService
 from repositories import WebsiteRepository, CheckRepository
-from schemas import PerformCheckRequest
+from apscheduler.schedulers.asyncio import AsyncIOScheduler # pyright: ignore[reportMissingTypeStubs]
+from contextlib import asynccontextmanager
 
 app = FastAPI()
+
+scheduler = AsyncIOScheduler()
+
+async def run_website_check(website_id: int):
+    print(f"checked for {website_id}")
+    with Session(engine) as session:
+        check_service = get_check_service(session=session)
+        await check_service.perform_check(website_id)
+        
+def add_job(website:Website):
+    print("Adding a job")
+    scheduler.add_job(run_website_check, 'interval', seconds=website.interval, args=[website.id], id=f"check_site_{website.id}") # pyright: ignore[reportUnknownMemberType]
+
+        
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler.start()
+    with Session(engine) as session:
+        website_service = get_website_service(session=session)
+        websites = website_service.get_all()
+        
+        for site in websites:
+            assert site.id is not None
+            add_job(site)
+            
+    yield
+    scheduler.shutdown()
 
 def get_session():
     with Session(engine) as session:
@@ -29,8 +57,8 @@ def get_websites(website_service: WebsiteService = Depends(get_website_service))
 
 @app.post("/", response_model=Website)
 def create_website(website: Website, website_service: WebsiteService = Depends(get_website_service)):
-    return website_service.create_website(website)
-
-@app.post("/perform-check", response_model=Check)
-def perform_check(request: PerformCheckRequest, check_service: CheckService = Depends(get_check_service)):
-    return check_service.perform_check(request.url)
+    new_site =  website_service.create_website(website)
+    assert new_site is not None
+    assert new_site.id is not None
+    add_job(new_site)
+    return new_site

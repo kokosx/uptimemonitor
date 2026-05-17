@@ -12,6 +12,9 @@ class WebsiteRepository:
     def get_by_name(self, name: str) -> Website | None:
         return self.session.exec(select(Website).where(Website.name == name)).first()
     
+    def get_by_id(self, id: int) -> Website | None:
+        return self.session.exec(select(Website).where(Website.id == id)).first()
+    
     def get_all(self) -> Sequence[Website]:
         return self.session.exec(select(Website)).all()
 
