@@ -2,6 +2,7 @@ import httpx
 from repositories import CheckRepository, WebsiteRepository
 from models import Check
 from fastapi import HTTPException
+import asyncio
 
 
         
@@ -10,9 +11,8 @@ class CheckService:
         self.check_repository = check_repository
         self.website_repository = website_repository
         
-        
     async def perform_check(self, website_id: int) -> Check:
-        website = self.website_repository.get_by_id(website_id)
+        website = await asyncio.to_thread(self.website_repository.get_by_id, website_id)
         if not website:
             raise HTTPException(status_code=404)
         assert website.id is not None
@@ -33,6 +33,6 @@ class CheckService:
         new_check = Check(website_id = website.id,
                           response_code=response_code,
                           error=error_msg)
-        return self.check_repository.save(new_check)
+        return await asyncio.to_thread(self.check_repository.save, new_check)
                 
         

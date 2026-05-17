@@ -7,14 +7,18 @@ from repositories import WebsiteRepository, CheckRepository
 from apscheduler.schedulers.asyncio import AsyncIOScheduler # pyright: ignore[reportMissingTypeStubs]
 from contextlib import asynccontextmanager
 
-app = FastAPI()
+
+
 
 scheduler = AsyncIOScheduler()
 
 async def run_website_check(website_id: int):
     print(f"checked for {website_id}")
     with Session(engine) as session:
-        check_service = get_check_service(session=session)
+        check_repo = CheckRepository(session=session)
+        website_repo = WebsiteRepository(session=session)
+        check_service = CheckService(check_repo, website_repo)
+        
         await check_service.perform_check(website_id)
         
 def add_job(website:Website):
@@ -26,7 +30,8 @@ def add_job(website:Website):
 async def lifespan(app: FastAPI):
     scheduler.start()
     with Session(engine) as session:
-        website_service = get_website_service(session=session)
+        website_repo = WebsiteRepository(session=session)
+        website_service = WebsiteService(website_repo)
         websites = website_service.get_all()
         
         for site in websites:
@@ -46,10 +51,12 @@ def get_website_service(session: Session = Depends(get_session)) -> WebsiteServi
     return service
 
 def get_check_service(session: Session = Depends(get_session)) -> CheckService:
-    check_repo = CheckRepository(session)
-    website_repo = WebsiteRepository(session)
+    check_repo = CheckRepository(session=session)
+    website_repo = WebsiteRepository(session=session)
     service = CheckService(check_repo, website_repo)
     return service
+
+app = FastAPI(lifespan=lifespan)
 
 @app.get("/", response_model=List[Website])
 def get_websites(website_service: WebsiteService = Depends(get_website_service)):
